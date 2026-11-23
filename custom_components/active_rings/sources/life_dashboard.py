@@ -4,17 +4,22 @@ Life Dashboard gives every value its own sensor (unique id
 ``<entry id>_<key>``) and writes each day's totals to long-term statistics
 named ``life_dashboard:<entry id>_<key>``. Its "today" sensors say in the
 attribute ``date`` which day their total is for. The sensors Exercise today
-and Exercise yesterday list that day's workouts in the attribute ``sessions``;
-older workouts are not kept by Life Dashboard.
+and Exercise yesterday list that day's workouts in the attribute ``sessions``.
+Life Dashboard 1.5.0 and newer also keeps the workouts from before those two
+days and returns them all with its action ``life_dashboard.get_workouts``.
 """
 
 from __future__ import annotations
 
+import logging
+from collections.abc import Mapping
 from datetime import date, datetime, tzinfo
 from typing import Any
 
+import voluptuous as vol
 from homeassistant.const import ATTR_UNIT_OF_MEASUREMENT, UnitOfLength
 from homeassistant.core import HomeAssistant, State
+from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers import entity_registry as er
 from homeassistant.util.unit_conversion import DistanceConverter
 
@@ -25,6 +30,7 @@ from ..const import (
     EXERCISE,
     LAST_SYNC,
     LIMITS,
+    MAX_WORKOUTS,
     MAX_WORKOUTS_PER_DAY,
     SOURCE_LIFE_DASHBOARD,
     STEPS,
@@ -32,10 +38,16 @@ from ..const import (
     WORKOUTS_TODAY,
     WORKOUTS_YESTERDAY,
 )
-from ..workouts import parse_workouts
+from ..workouts import Workout, parse_workouts
 from . import DayTotal, DayWorkouts
 
+_LOGGER = logging.getLogger(__name__)
+
 LIFE_DASHBOARD_DOMAIN = "life_dashboard"
+ACTION_GET_WORKOUTS = "get_workouts"
+# Life Dashboard's option for the shortest workout its sensors count, in minutes.
+# Its action returns every workout and leaves that choice to the reader.
+OPTION_SHORTEST_WORKOUT = "min_workout_minutes"
 
 # The end of each sensor's unique id, and the metrics it carries.
 UNIQUE_ID_KEYS: dict[str, tuple[str, ...]] = {
@@ -120,3 +132,38 @@ class LifeDashboardSource:
         if day is None or not isinstance(sessions, (list, tuple)):
             return None
         return DayWorkouts(day=day, workouts=parse_workouts(sessions, tz, MAX_WORKOUTS_PER_DAY))
+
+    async def async_past_workouts(
+        self, hass: HomeAssistant, source_entry_id: str, start: date, tz: tzinfo
+    ) -> list[Workout] | None:
+        """Ask Life Dashboard for every workout it keeps (1.5.0 and newer).
+
+        Workouts shorter than Life Dashboard's own "shortest workout" option are
+        left out, as its sensors leave them out.
+        """
+        if not hass.services.has_service(LIFE_DASHBOARD_DOMAIN, ACTION_GET_WORKOUTS):
+            return None
+        try:
+            response = await hass.services.async_call(
+                LIFE_DASHBOARD_DOMAIN,
+                ACTION_GET_WORKOUTS,
+                {"config_entry": source_entry_id, "start": start.isoformat()},
+                blocking=True,
+                return_response=True,
+            )
+        except HomeAssistantError, vol.Invalid:
+            _LOGGER.debug("Life Dashboard did not return its workouts", exc_info=True)
+            return None
+        listed = response.get("workouts") if isinstance(response, Mapping) else None
+        if not isinstance(listed, list):
+            return None
+        entry = hass.config_entries.async_get_entry(source_entry_id)
+        shortest = (
+            number(entry.options.get(OPTION_SHORTEST_WORKOUT), (0, 24 * 60)) if entry else None
+        )
+        # The list is oldest first: if it is longer than the log may be, the newest count.
+        return [
+            workout
+            for workout in parse_workouts(listed[-MAX_WORKOUTS:], tz, MAX_WORKOUTS)
+            if workout.minutes >= (shortest or 0)
+        ]

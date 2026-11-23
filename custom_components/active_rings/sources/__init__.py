@@ -2,7 +2,7 @@
 
 A source says where another integration keeps its activity data: which
 entities carry today's totals, which long-term statistics hold the daily
-history, and how to read its list of workouts. To support another source:
+history, and how to read its workouts. To support another source:
 write a class with the ``ActivitySource`` shape and add it to ``SOURCES``.
 Nothing else in the integration knows where the data comes from.
 
@@ -56,6 +56,16 @@ class ActivitySource(Protocol):
 
     def workouts(self, state: State, tz: tzinfo) -> DayWorkouts | None:
         """Return the day's workouts carried by a workouts entity."""
+
+    async def async_past_workouts(
+        self, hass: HomeAssistant, source_entry_id: str, start: date, tz: tzinfo
+    ) -> list[Workout] | None:
+        """Return every workout the source keeps since ``start``, oldest first.
+
+        The list must be complete from its first workout on. None when the
+        source keeps no past workouts or cannot be asked right now; the days'
+        lists of ``workouts`` are used then.
+        """
 
 
 def _sources() -> dict[str, ActivitySource]:

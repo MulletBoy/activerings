@@ -187,6 +187,78 @@ def test_a_log_that_says_it_began_in_the_future_begins_today() -> None:
     assert log.since == DAY
 
 
+EARLIEST = DAY - timedelta(days=400)
+THROUGH = DAY + timedelta(days=1)
+
+
+def test_the_log_follows_a_source_that_keeps_its_past_workouts() -> None:
+    log = WorkoutLog()
+    # Taken from the days' lists, before the source kept its past workouts.
+    early = session("hiking", "2030-01-05T09:00:00+11:00", 90)
+    yoga = session("yoga", "2030-03-07T07:00:00+11:00", 30)
+    run = session()
+    for item in (early, yoga, run):
+        when = date.fromisoformat(item["start"][:10])
+        log.merge(when, parse_workouts([item], TZ, 40), TZ)
+    assert log.since == date(2030, 1, 5)
+
+    # The source now lists its own: a swim the log never saw, the yoga and the run.
+    swim = session("swimming_pool", "2030-02-20T06:30:00+11:00", 40)
+    assert log.sync(parse_workouts([swim, yoga, run], TZ, 100), EARLIEST, THROUGH, TZ)
+    assert [workout.kind for workout in log.recent(5)] == [
+        "running",
+        "yoga",
+        "swimming_pool",
+        "hiking",
+    ]
+    # Then the yoga is deleted on the phone and the run corrected.
+    corrected = {**run, "heart_rate_avg": 151}
+    assert log.sync(parse_workouts([swim, corrected], TZ, 100), EARLIEST, THROUGH, TZ)
+    assert [workout.kind for workout in log.recent(5)] == ["running", "swimming_pool", "hiking"]
+    assert log.recent(1)[0].as_dict()["heart_rate_avg"] == 151
+    # The hike stays: the source never listed it, so its absence says nothing.
+    assert log.since == date(2030, 1, 5)
+    # The same list again changes nothing, and an empty list says nothing.
+    assert not log.sync(parse_workouts([swim, corrected], TZ, 100), EARLIEST, THROUGH, TZ)
+    assert not log.sync([], EARLIEST, THROUGH, TZ)
+    assert len(log) == 3
+
+
+def test_a_workout_the_source_never_listed_is_not_dropped() -> None:
+    # The source is still being sent its history and lists only old workouts so far.
+    log = WorkoutLog()
+    log.merge(DAY, parse_workouts([session()], TZ, 40), TZ)
+    old = session("cycling", "2029-11-02T08:00:00+11:00", 60)
+    assert log.sync(parse_workouts([old], TZ, 100), EARLIEST, THROUGH, TZ)
+    assert [workout.kind for workout in log.recent(5)] == ["running", "cycling"]
+
+
+def test_what_the_list_has_held_is_remembered_in_the_stored_log() -> None:
+    log = WorkoutLog()
+    log.merge(DAY, parse_workouts([session("yoga", "2030-03-10T07:00:00+11:00", 30)], TZ, 40), TZ)
+    log.sync(parse_workouts([session()], TZ, 100), EARLIEST, THROUGH, TZ)
+    stored = log.as_dict()
+    assert [item.get("listed", False) for item in stored["workouts"]] == [False, True]
+    again = WorkoutLog.from_dict(stored, TZ, 100)
+    # After a restart the run is still known to have been listed, so it goes when it is deleted.
+    swim = session("swimming_pool", "2030-03-09T06:30:00+11:00", 40)
+    again.sync(parse_workouts([swim], TZ, 100), EARLIEST, THROUGH, TZ)
+    assert sorted(workout.kind for workout in again.recent(5)) == ["swimming_pool", "yoga"]
+    # The card is not told which workouts were listed.
+    assert all("listed" not in workout.as_dict() for workout in again.recent(5))
+
+
+def test_a_source_that_reaches_further_back_moves_the_start_of_the_log() -> None:
+    log = WorkoutLog()
+    log.merge(DAY, parse_workouts([session()], TZ, 40), TZ)
+    old = session("cycling", "2029-11-02T08:00:00+11:00", 60)
+    ahead = session("running", "2030-06-01T08:00:00+11:00", 30)
+    # A workout dated after tomorrow is a broken clock and is not taken.
+    assert log.sync(parse_workouts([old, session(), ahead], TZ, 100), EARLIEST, THROUGH, TZ)
+    assert log.since == date(2029, 11, 2)
+    assert [workout.kind for workout in log.recent(5)] == ["running", "cycling"]
+
+
 def test_old_workouts_are_pruned() -> None:
     log = WorkoutLog()
     for back in (500, 30, 2, 1):

@@ -2034,7 +2034,7 @@ var zt = Xe`
       transition: none;
     }
   }
-`, ne, Ht = "1.0.0", I = "active-rings-card", Ye = 36e5, C = 24 * Ye, Lt = [{
+`, ne, Ht = "1.1.0", I = "active-rings-card", Ye = 36e5, C = 24 * Ye, Lt = [{
   key: "today",
   label: "Today",
   heading: "Today",

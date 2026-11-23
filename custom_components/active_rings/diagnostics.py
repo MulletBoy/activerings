@@ -29,6 +29,7 @@ async def async_get_config_entry_diagnostics(
         "has_recorder": "recorder" in hass.config.components,
         "refreshed": manager.updated is not None,
         "workouts_kept": len(manager.log),
+        "workouts_from": manager.workouts_from,
         "metrics": {
             metric: sorted(name for name, value in values.items() if value is not None)
             for metric, values in sorted(manager.metrics.items())

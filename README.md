@@ -88,8 +88,10 @@ More may follow.
 - Home Assistant 2026.11 or newer, with the recorder (it is on by default).
 - [Life Dashboard](https://github.com/owen282000/life-dashboard-ha) 1.4.0 or
   newer with its iOS companion app, which sends Apple Health data to Home
-  Assistant. It is the only supported source so far; others can be added
-  through a small adapter, see [Adding a source](#adding-a-source).
+  Assistant. **1.5.0 or newer is recommended:** it keeps your past workouts,
+  so they are there from before you installed ActiveRings. It is the only
+  supported source so far; others can be added through a small adapter, see
+  [Adding a source](#adding-a-source).
 - The stock Home Assistant companion app is not enough: it reports a step
   count when it happens to sync, with no daily history and no workouts.
 
@@ -113,6 +115,7 @@ folder and restart.
 
 | Version | In short |
 |---|---|
+| **1.1.0** | Past workouts now come from Life Dashboard itself where it keeps them (Life Dashboard 1.5.0 and newer): after a "Send history" from the phone app, the workouts from before you installed ActiveRings are there too, and a workout deleted or corrected later is followed. ActiveRings' own log stays as the fallback for older Life Dashboard versions. |
 | **1.0.0** | First release: six rings filled against your own goals in two sets (Today and Last 7 days) with an explanation on every ring, a focus activity you choose, today's distance and energy, the steps and exercise charts, a workout log, nine sensors, and the card in three presets. |
 
 Full notes for every version are on the [releases page](https://github.com/MulletBoy/activerings/releases).
@@ -216,12 +219,14 @@ dashboard columns.
 - **The goal streak** counts the days in a row that reached your steps goal.
   Today joins the run once it reaches the goal, and does not break it before
   then.
-- **Workouts** are kept by ActiveRings itself, because the health integration
-  keeps them for two days only. The log starts on the day you install
-  ActiveRings, so in its first week the focus activity ring counts fewer than
-  seven days; the card says since when it is counting. A workout you delete or
-  correct on your phone within those two days is deleted or corrected in the
-  log.
+- **Workouts** come from Life Dashboard's own list of past workouts where it
+  keeps one (1.5.0 and newer): ActiveRings asks for it and its log follows it,
+  so a workout you delete or correct on your phone is deleted or corrected
+  here, and after a "Send history" from the phone app your older workouts are
+  there too. With an older Life Dashboard, which keeps workouts for two days
+  only, ActiveRings' log is what remembers them: it then starts on the day
+  you install ActiveRings, so in its first week the focus activity ring counts
+  fewer than seven days, and the card says since when it is counting.
 - Values that cannot be right (a day of 900,000 steps, a workout that lasts a
   week) are ignored.
 
@@ -250,7 +255,7 @@ dashboard columns.
 
 Sources live in `custom_components/active_rings/sources/`. A source is a small class that says
 where another integration keeps its activity data: which entities carry today's totals, which
-long-term statistics hold the daily history, and how to read its list of workouts. See
+long-term statistics hold the daily history, and how to read its workouts. See
 `life_dashboard.py` and the `ActivitySource` protocol in `sources/__init__.py`. Everything after
 that (rings, averages, the streak, the workout log, sensors, the card) is shared.
 

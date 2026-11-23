@@ -1,17 +1,19 @@
 """Workouts, and the log ActiveRings keeps of them. Nothing here knows about Home Assistant.
 
-A source lists the workouts of today and yesterday and forgets older ones, so
-this is the one thing ActiveRings stores itself: every workout it has seen,
-for the week's rings and the list on the card. A day's list from the source is
-complete, so it replaces what the log held for that day: a workout deleted or
-corrected on the phone is deleted or corrected here.
+This is the one thing ActiveRings stores itself: every workout it has seen,
+for the week's rings and the list on the card. A source that keeps its past
+workouts hands them over as one list, and the log follows it (``sync``): a
+workout that list has held and holds no more was deleted or corrected on the
+phone, and goes. A source that only lists the workouts of today and yesterday
+is read day by day (``merge``), a day's list replacing what the log held for
+that day, and the log is then the only place the older ones are kept.
 """
 
 from __future__ import annotations
 
 import re
 from collections.abc import Iterable, Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import UTC, date, datetime, timedelta, tzinfo
 from typing import Any
 
@@ -69,6 +71,8 @@ class Workout:
     end: datetime
     minutes: float
     details: tuple[tuple[str, float], ...] = ()
+    #: Whether the source's own list of past workouts has held it (WorkoutLog.sync).
+    listed: bool = False
 
     @property
     def key(self) -> str:
@@ -76,7 +80,7 @@ class Workout:
         return f"{self.start.astimezone(UTC).isoformat()}|{self.kind}"
 
     def as_dict(self) -> dict[str, Any]:
-        """The workout as it is stored and sent to the card."""
+        """The workout as it is sent to the card, and stored (the log adds ``listed``)."""
         return {
             "type": self.kind,
             "start": self.start.isoformat(),
@@ -202,6 +206,36 @@ class WorkoutLog:
             self.since = day
         return self._workouts != before or self.since != since
 
+    def sync(self, workouts: Iterable[Workout], earliest: date, through: date, tz: tzinfo) -> bool:
+        """Take a source's list of its past workouts. Returns whether anything changed.
+
+        ``earliest`` and ``through`` are the first and last day the list was
+        asked for. Every workout in it is taken, and marked as listed. A
+        workout the list has held before and holds no more was deleted or
+        corrected on the phone, and goes. One the list never held stays: the
+        log took it from a day's list before the source kept its past
+        workouts, or the source is still being sent its history, and its
+        absence says nothing. An empty list says nothing either.
+        """
+        listed = {
+            workout.key: replace(workout, listed=True)
+            for workout in workouts
+            if workout.start.astimezone(tz).date() <= through
+        }
+        if not listed:
+            return False
+        before = dict(self._workouts)
+        since = self.since
+        first = min(workout.start.astimezone(tz).date() for workout in listed.values())
+        for key, workout in list(self._workouts.items()):
+            day = workout.start.astimezone(tz).date()
+            if workout.listed and key not in listed and earliest <= day <= through:
+                del self._workouts[key]
+        self._workouts.update(listed)
+        if self.since is None or first < self.since:
+            self.since = first
+        return self._workouts != before or self.since != since
+
     def prune(self, today: date, max_age_days: int, max_count: int) -> bool:
         """Drop what is too old or lies in the future, and the oldest when there are too many."""
         earliest = today - timedelta(days=max_age_days)
@@ -237,7 +271,7 @@ class WorkoutLog:
         return {
             "since": self.since.isoformat() if self.since else None,
             "workouts": [
-                workout.as_dict()
+                workout.as_dict() | ({"listed": True} if workout.listed else {})
                 for workout in sorted(self._workouts.values(), key=lambda item: item.start)
             ],
         }
@@ -259,5 +293,6 @@ class WorkoutLog:
             for item in stored[-max_count:]:
                 workout = parse_workout(item, tz)
                 if workout is not None:
-                    log._workouts[workout.key] = workout
+                    listed = item.get("listed") is True
+                    log._workouts[workout.key] = replace(workout, listed=listed)
         return log

@@ -2,7 +2,8 @@
 
 The totals are read from the source's entities and its long-term statistics
 each time, so they can be worked out again at any time. Only the workouts are
-kept (see workouts.py): the source forgets them after two days.
+kept (see workouts.py): a source may forget them after two days, and one that
+keeps them is asked for its list, which the log then follows.
 """
 
 from __future__ import annotations
@@ -125,6 +126,9 @@ class ActiveRingsManager:
         self.updated: datetime | None = None
         self.synced: datetime | None = None
         self.log = WorkoutLog()
+        # Where the workouts last came from: the source's list of past workouts
+        # ("list"), or its lists for today and yesterday ("days").
+        self.workouts_from: str | None = None
         self._store: Store[dict[str, Any]] = Store(
             hass, STORAGE_VERSION, storage_key(entry.entry_id), private=True
         )
@@ -353,7 +357,7 @@ class ActiveRingsManager:
             }
 
         # Workouts: take in what the source lists, then count the week.
-        self._take_in_workouts(today)
+        await self._async_take_in_workouts(today)
         if self.log.since is not None:
             since = midnight - timedelta(days=WEEK_DAYS - 1)
             listed = self.log.between(since, now + timedelta(days=1))
@@ -383,11 +387,32 @@ class ActiveRingsManager:
         self.synced = synced
         return metrics
 
-    def _take_in_workouts(self, today: date) -> None:
-        """Fold the source's lists for today and yesterday into the log."""
+    async def _async_take_in_workouts(self, today: date) -> None:
+        """Bring the log up to date with the source.
+
+        A source that keeps its past workouts is asked for all of them, and the
+        log follows that list. Otherwise, or when it has none to give, its lists
+        for today and yesterday are folded in.
+        """
         tz = dt_util.DEFAULT_TIME_ZONE
         changed = False
-        for metric in (WORKOUTS_YESTERDAY, WORKOUTS_TODAY):
+        earliest = today - timedelta(days=MAX_WORKOUT_AGE_DAYS)
+        try:
+            past = await self.source.async_past_workouts(
+                self.hass, self.source_entry_id, earliest, tz
+            )
+        except Exception:  # noqa: BLE001 - the days' lists still work without it
+            _LOGGER.debug("Could not read the past workouts", exc_info=True)
+            past = None
+        self.workouts_from = "list" if past else "days"
+        if past:
+            # Tomorrow is let in: the phone may be a time zone ahead of here.
+            # A workout that began on the first day asked for may have ended the
+            # day before and so be missing: the log is followed from the day after.
+            changed = self.log.sync(
+                past, earliest + timedelta(days=1), today + timedelta(days=1), tz
+            )
+        for metric in () if past else (WORKOUTS_YESTERDAY, WORKOUTS_TODAY):
             state = self._state(metric)
             try:
                 listed = self.source.workouts(state, tz) if state else None

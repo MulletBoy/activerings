@@ -7,8 +7,9 @@ from unittest.mock import patch
 
 import pytest
 from homeassistant.config_entries import SOURCE_USER
-from homeassistant.core import HomeAssistant
+from homeassistant.core import HomeAssistant, ServiceCall, SupportsResponse
 from homeassistant.data_entry_flow import FlowResultType
+from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers import entity_registry as er
 from pytest_homeassistant.common import MockConfigEntry, async_fire_time_changed
 
@@ -69,6 +70,22 @@ SOURCE_SENSORS = {
         {"unit_of_measurement": "min", "date": "2030-03-09", "sessions": [RUN]},
     ),
     "last_health_sync": ("2030-03-10T03:22:00+00:00", {}),
+}
+
+# Older workouts, which only a source that keeps its past workouts can list.
+LIFT = {
+    "type": "strength_training",
+    "start": "2030-03-06T18:00:00+11:00",
+    "end": "2030-03-06T18:40:00+11:00",
+    "minutes": 40,
+    "heart_rate_avg": 109,
+}
+OLD_RUN = {
+    "type": "running",
+    "start": "2030-02-18T07:00:00+11:00",
+    "end": "2030-02-18T07:35:00+11:00",
+    "minutes": 35,
+    "distance_km": 6.1,
 }
 
 # What each complete day totals, by how many days back it is; "*" is every other day.
@@ -158,6 +175,22 @@ def add_source(
         )
         hass.states.async_set(entity_id(key), state, attributes)
     return source
+
+
+def add_action(hass: HomeAssistant, workouts: list[dict], *, fails: bool = False) -> list[dict]:
+    """Life Dashboard's action for its past workouts, as 1.5.0 and newer have it."""
+    calls: list[dict] = []
+
+    async def get_workouts(call: ServiceCall) -> dict:
+        calls.append(dict(call.data))
+        if fails:
+            raise HomeAssistantError("not now")
+        return {"workouts": workouts}
+
+    hass.services.async_register(
+        "life_dashboard", "get_workouts", get_workouts, supports_response=SupportsResponse.ONLY
+    )
+    return calls
 
 
 async def setup_entry(
@@ -597,6 +630,104 @@ async def test_nothing_is_written_once_the_entry_is_unloaded(
     async_fire_time_changed(hass, NOW + timedelta(minutes=2))
     await hass.async_block_till_done()
     assert key not in hass_storage
+
+
+async def test_past_workouts_come_from_a_source_that_keeps_them(hass: HomeAssistant) -> None:
+    calls = add_action(hass, [OLD_RUN, LIFT, RUN, WALK, WEIGHTS])
+    entry = await setup_entry(hass)
+    manager = entry.runtime_data
+    # Asked for this phone, as far back as the log goes.
+    assert calls[-1] == {"config_entry": SOURCE_ENTRY_ID, "start": "2029-02-03"}
+    assert manager.workouts_from == "list"
+    assert [workout["type"] for workout in manager.workouts] == [
+        "strength_training",
+        "walking",
+        "running",
+        "strength_training",
+        "running",
+    ]
+    # The log now begins where the source's list does, not on the day of the installation.
+    assert manager.summary()["workouts_since"] == "2030-02-18"
+    metrics = manager.metrics
+    assert metrics["workouts_week"]["value"] == 4
+    assert metrics["workouts_week"]["days_known"] == 7
+    # Strength training on two of the seven days: the focus ring is full.
+    assert metrics["focus_week"]["days"] == [False, False, True, False, False, False, True]
+    assert metrics["focus_week"]["score"] == 100
+    assert metrics["week_score"]["value"] == round((100 + 60 + 100) / 3)
+    diagnostics = await async_get_config_entry_diagnostics(hass, entry)
+    assert diagnostics["workouts_from"] == "list"
+    assert diagnostics["workouts_kept"] == 5
+
+
+async def test_the_log_follows_the_sources_list(hass: HomeAssistant, hass_storage) -> None:
+    add_source(hass)
+    add_action(hass, [LIFT, RUN, WALK, WEIGHTS])
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        title="Sample",
+        unique_id=SOURCE_ENTRY_ID,
+        data={CONF_SOURCE: SOURCE_LIFE_DASHBOARD, CONF_SOURCE_ENTRY: SOURCE_ENTRY_ID},
+    )
+    entry.add_to_hass(hass)
+    key = storage_key(entry.entry_id)
+    # Kept by the log so far: a run from before the source kept anything, and a yoga
+    # session the source listed earlier and that has since been deleted on the phone.
+    yoga = {
+        "type": "yoga",
+        "start": "2030-03-08T07:00:00+11:00",
+        "end": "2030-03-08T07:30:00+11:00",
+        "minutes": 30,
+        "listed": True,
+    }
+    hass_storage[key] = {
+        "version": 1,
+        "minor_version": 1,
+        "key": key,
+        "data": {"since": "2030-02-18", "workouts": [OLD_RUN, yoga]},
+    }
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+    manager = entry.runtime_data
+    kinds = [workout["type"] for workout in manager.workouts]
+    assert "yoga" not in kinds
+    assert kinds == ["strength_training", "walking", "running", "strength_training", "running"]
+    assert manager.summary()["workouts_since"] == "2030-02-18"
+
+
+async def test_without_an_answer_the_days_lists_are_used(hass: HomeAssistant) -> None:
+    calls = add_action(hass, [], fails=True)
+    entry = await setup_entry(hass)
+    manager = entry.runtime_data
+    assert calls
+    assert manager.workouts_from == "days"
+    assert [workout["type"] for workout in manager.workouts] == [
+        "strength_training",
+        "walking",
+        "running",
+    ]
+
+
+async def test_the_sources_shortest_workout_is_respected(hass: HomeAssistant) -> None:
+    stroll = {
+        "type": "walking",
+        "start": "2030-03-08T12:00:00+11:00",
+        "end": "2030-03-08T12:06:00+11:00",
+        "minutes": 6,
+    }
+    add_action(hass, [stroll, RUN, WALK, WEIGHTS])
+    source = add_source(hass)
+    hass.config_entries.async_update_entry(source, options={"min_workout_minutes": 15})
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        title="Sample",
+        unique_id=SOURCE_ENTRY_ID,
+        data={CONF_SOURCE: SOURCE_LIFE_DASHBOARD, CONF_SOURCE_ENTRY: SOURCE_ENTRY_ID},
+    )
+    entry.add_to_hass(hass)
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+    assert entry.runtime_data.metrics["workouts_week"]["value"] == 3
 
 
 async def test_unload_and_reload(hass: HomeAssistant) -> None:
