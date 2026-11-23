@@ -1,0 +1,515 @@
+<meta charset="utf-8">
+<title>ActiveRings Card Demo</title>
+<style>
+  /* Layout: a short intro and two controls, then a grid of mock dashboards, each showing the card in a different theme or width. */
+  :root {
+    --bg: #f3f2f8;
+    --fg: #1d1a2b;
+    --muted: #625d78;
+    --line: #d9d6e6;
+    --accent: #5b55d6;
+    --control: #ffffff;
+    --font-display: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    --font-body: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #14121d; --fg: #eceaf6; --muted: #a29dba; --line: #322e45; --accent: #a59fff; --control: #1f1c2c;
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #14121d; --fg: #eceaf6; --muted: #a29dba; --line: #322e45; --accent: #a59fff; --control: #1f1c2c;
+    color-scheme: dark;
+  }
+  body {
+    background: var(--bg);
+    color: var(--fg);
+    font-family: var(--font-body);
+    font-size: 15px;
+    line-height: 1.5;
+    padding-block: 28px 48px;
+    padding-left: max(16px, env(safe-area-inset-left, 0px));
+    padding-right: max(16px, env(safe-area-inset-right, 0px));
+  }
+  .wrap { max-width: 1120px; margin: 0 auto; display: flex; flex-direction: column; gap: 22px; }
+  h1 { font-family: var(--font-display); font-size: 26px; font-weight: 600; margin: 0; text-wrap: balance; }
+  .lede { margin: 6px 0 0; color: var(--muted); max-width: 65ch; }
+  .controls { display: flex; flex-wrap: wrap; gap: 14px 22px; align-items: end; }
+  .control { display: flex; flex-direction: column; gap: 5px; }
+  .control > span { font-size: 11px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); }
+  .seg { display: inline-flex; flex-wrap: wrap; border: 1px solid var(--line); border-radius: 9px; overflow: hidden; background: var(--control); }
+  .seg button {
+    font: inherit; font-size: 13px; padding: 7px 12px; border: 0; background: none; color: var(--fg); cursor: pointer;
+  }
+  .seg button + button { border-left: 1px solid var(--line); }
+  .seg button[aria-pressed="true"] { background: var(--accent); color: var(--bg); font-weight: 600; }
+  .seg button:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 330px), 1fr)); gap: 18px; align-items: start; }
+  figure { margin: 0; min-width: 0; display: flex; flex-direction: column; gap: 8px; }
+  figcaption { font-size: 13px; color: var(--muted); }
+  figcaption b { color: var(--fg); font-weight: 600; }
+  /* Each frame imitates a Home Assistant dashboard in one theme; these colours are fixed on purpose. */
+  .frame { padding: 14px; border-radius: 14px; border: 1px solid var(--line); }
+  .frame[data-ha="light"] {
+    background: #f1f1f4; --ha-card-background: #ffffff; --primary-text-color: #1c1c1e;
+    --secondary-text-color: #6b6b70; --divider-color: rgba(0, 0, 0, 0.12);
+  }
+  .frame[data-ha="dark"] {
+    background: #111113; --ha-card-background: #1c1c1e; --primary-text-color: #e6e6e8;
+    --secondary-text-color: #9b9ba1; --divider-color: rgba(255, 255, 255, 0.12);
+  }
+  .frame[data-ha="synth"] {
+    background: #0b0318; --ha-card-background: rgba(22, 8, 43, 0.94); --primary-text-color: #f1e8ff;
+    --secondary-text-color: #b9a6d6; --divider-color: #3b1c66;
+  }
+  .narrow { max-width: 300px; }
+  .wide { grid-column: 1 / -1; width: 100%; }
+  .wide .frame { overflow-x: auto; }
+  .note { font-size: 13px; color: var(--muted); max-width: 65ch; margin: 0; }
+  /* Showcase mode (demo.html?showcase): branded scenes used for the README images. */
+  #showcase { display: flex; flex-direction: column; gap: 40px; width: 1600px; }
+  .shot {
+    position: relative;
+    width: 1600px;
+    box-sizing: border-box;
+    padding: 64px 72px 72px;
+    overflow: hidden;
+    color: #f1e8ff;
+    background:
+      radial-gradient(circle at 12% -10%, rgba(164, 107, 255, 0.55) 0%, transparent 42%),
+      radial-gradient(circle at 96% 108%, rgba(255, 47, 214, 0.38) 0%, transparent 40%),
+      radial-gradient(circle at 70% -20%, rgba(77, 243, 255, 0.18) 0%, transparent 38%),
+      linear-gradient(165deg, #0b0318 0%, #170a2e 55%, #0b0318 100%);
+  }
+  /* A faint synthwave floor grid fading into the horizon */
+  .shot::after {
+    content: "";
+    position: absolute;
+    left: -20%;
+    right: -20%;
+    bottom: -40px;
+    height: 300px;
+    background:
+      repeating-linear-gradient(90deg, rgba(255, 47, 214, 0.22) 0 1px, transparent 1px 80px),
+      repeating-linear-gradient(0deg, rgba(255, 47, 214, 0.22) 0 1px, transparent 1px 44px);
+    transform: perspective(520px) rotateX(62deg);
+    transform-origin: bottom;
+    -webkit-mask-image: linear-gradient(to top, #000 0%, transparent 85%);
+    mask-image: linear-gradient(to top, #000 0%, transparent 85%);
+    pointer-events: none;
+  }
+  .shot > * { position: relative; z-index: 1; }
+  .brand { display: flex; align-items: center; gap: 22px; }
+  .brand svg { width: 92px; height: 92px; filter: drop-shadow(0 0 18px rgba(255, 47, 214, 0.45)); }
+  .brand h2 { margin: 0; font-size: 58px; line-height: 1; font-weight: 800; letter-spacing: -0.02em; }
+  .brand h2 span {
+    background: linear-gradient(90deg, #ff2fd6, #a46bff 55%, #4df3ff);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+  .brand p { margin: 10px 0 0; font-size: 22px; color: #b9a6d6; }
+  .chips { display: flex; flex-wrap: wrap; gap: 10px; margin: 26px 0 34px; }
+  .chips span {
+    padding: 7px 14px;
+    border-radius: 999px;
+    font-size: 15px;
+    font-weight: 600;
+    color: #f1e8ff;
+    border: 1px solid rgba(185, 166, 214, 0.35);
+    background: rgba(11, 3, 24, 0.45);
+  }
+  .glass {
+    padding: 18px;
+    border-radius: 26px;
+    border: 1px solid rgba(185, 166, 214, 0.28);
+    background: rgba(11, 3, 24, 0.5);
+    box-shadow: 0 40px 90px rgba(255, 47, 214, 0.22), 0 10px 30px rgba(0, 0, 0, 0.5);
+  }
+  .glass[data-ha="light"] { background: #f1f1f4; }
+  .glass[data-ha="dark"] { background: #111113; }
+  .shot h3 { margin: 0 0 14px; font-size: 20px; font-weight: 700; }
+  .shot h3 small { font-weight: 400; color: #b9a6d6; font-size: 16px; margin-left: 8px; }
+  .trio { display: grid; grid-template-columns: repeat(3, 1fr); gap: 28px; align-items: start; }
+  .duo { display: grid; grid-template-columns: repeat(2, 1fr); gap: 28px; align-items: start; }
+  body.showcase { padding: 0; background: #05010c; }
+</style>
+
+<div id="showcase" hidden>
+  <section class="shot" id="hero">
+    <div class="brand">
+      <svg viewBox="0 0 96 96" aria-hidden="true">
+        <defs>
+          <linearGradient id="lg1" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#ff2fd6"/><stop offset="1" stop-color="#a46bff"/></linearGradient>
+          <linearGradient id="lg2" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#5df0a8"/><stop offset="1" stop-color="#4df3ff"/></linearGradient>
+          <linearGradient id="lg3" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#ffb224"/><stop offset="1" stop-color="#ff7a3d"/></linearGradient>
+          <linearGradient id="lg4" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#c8f55a"/><stop offset="1" stop-color="#5df0a8"/></linearGradient>
+        </defs>
+        <g fill="none" stroke-width="7" stroke-linecap="round" transform="rotate(-90 48 48)">
+          <circle cx="48" cy="48" r="40" stroke="rgba(185,166,214,0.18)"/>
+          <circle cx="48" cy="48" r="30" stroke="rgba(185,166,214,0.18)"/>
+          <circle cx="48" cy="48" r="20" stroke="rgba(185,166,214,0.18)"/>
+          <circle cx="48" cy="48" r="40" stroke="url(#lg1)" stroke-dasharray="206 251.3"/>
+          <circle cx="48" cy="48" r="30" stroke="url(#lg2)" stroke-dasharray="175 188.5"/>
+          <circle cx="48" cy="48" r="20" stroke="url(#lg3)" stroke-dasharray="85 125.7"/>
+        </g>
+        <path fill="url(#lg4)" d="M52.9 33.8 40.5 50.6h6.8l-4.200 12.400 13.100-17.600h-7.100z"/>
+      </svg>
+      <div>
+        <h2>Active<span>Rings</span></h2>
+        <p>Steps, exercise and workout rings for Home Assistant</p>
+      </div>
+    </div>
+    <div class="chips">
+      <span>Today and the last 7 days</span><span>Your own goals</span><span>A focus activity you choose</span><span>Steps and exercise charts</span><span>Workout log</span>
+    </div>
+    <div class="glass frame" data-ha="synth" id="hero-card"></div>
+  </section>
+
+  <section class="shot" id="themes">
+    <div class="trio">
+      <div><h3>Synthwave <small>the default</small></h3><div class="glass frame" data-ha="synth" id="theme-synth"></div></div>
+      <div><h3>Theme <small>follows a light theme</small></h3><div class="glass frame" data-ha="light" id="theme-light"></div></div>
+      <div><h3>Vivid <small>on a dark theme</small></h3><div class="glass frame" data-ha="dark" id="theme-dark"></div></div>
+    </div>
+  </section>
+
+  <section class="shot" id="rings">
+    <div class="duo">
+      <div><h3>Every ring explains itself <small>hover or tap a row</small></h3><div class="glass frame" data-ha="synth" id="ring-info"></div></div>
+      <div><h3>Your focus activity <small>here swimming, on a day with every goal reached</small></h3><div class="glass frame" data-ha="synth" id="ring-focus"></div></div>
+    </div>
+  </section>
+</div>
+
+<div class="wrap">
+  <header>
+    <h1>ActiveRings card</h1>
+    <p class="lede">The real card bundle with invented sample data; none of it is from a real person. Each frame is a mock Home Assistant dashboard in a different theme or width. Hover a bar for its number, use the small switches on each chart to change its period, and hover a ring's row to read what fills it.</p>
+  </header>
+
+  <div class="controls">
+    <div class="control">
+      <span id="lbl-day">Sample day</span>
+      <div class="seg" role="group" aria-labelledby="lbl-day" id="scenario">
+        <button type="button" data-v="typical" aria-pressed="true">Mid-afternoon</button>
+        <button type="button" data-v="done" aria-pressed="false">Goals reached</button>
+        <button type="button" data-v="rest" aria-pressed="false">Rest day</button>
+        <button type="button" data-v="fresh" aria-pressed="false">Just installed</button>
+        <button type="button" data-v="empty" aria-pressed="false">No data</button>
+      </div>
+    </div>
+    <div class="control">
+      <span id="lbl-unit">Units</span>
+      <div class="seg" role="group" aria-labelledby="lbl-unit" id="unit">
+        <button type="button" data-v="metric" aria-pressed="true">km · kcal</button>
+        <button type="button" data-v="other" aria-pressed="false">mi · kJ</button>
+      </div>
+    </div>
+    <div class="control">
+      <span id="lbl-focus">Focus activity (an option of the integration)</span>
+      <div class="seg" role="group" aria-labelledby="lbl-focus" id="focus">
+        <button type="button" data-v="strength" aria-pressed="true">Strength</button>
+        <button type="button" data-v="swimming" aria-pressed="false">Swimming</button>
+        <button type="button" data-v="cycling" aria-pressed="false">Cycling</button>
+        <button type="button" data-v="running" aria-pressed="false">Running</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="grid" id="grid"></div>
+
+  <p class="note">A ring is full when its goal is reached, so a full ring is always good news. Today: steps, exercise minutes and active energy since midnight. Last 7 days looks back over a rolling week, and each of its rows shows the seven days as seven small columns, today last: exercise minutes (goal 150, the World Health Organization's guideline), active days (the days that reached the daily exercise goal, goal 5) and the days with your focus activity (goal 2). The focus activity is an option of the integration: strength training unless you choose another, such as swimming or cycling. The number in the middle is the mean of the three rings, each counted to 100 at most. Goals are options of the integration.</p>
+</div>
+
+<script type="module">
+/*BUNDLE*/
+</script>
+<script type="module">
+  // Stand-in for Home Assistant's <ha-card>.
+  if (!customElements.get("ha-card")) {
+    customElements.define("ha-card", class extends HTMLElement {
+      constructor() {
+        super();
+        this.attachShadow({ mode: "open" }).innerHTML =
+          "<style>:host{display:block;box-sizing:border-box;border-radius:12px;" +
+          "background:var(--ha-card-background,#fff);border:1px solid var(--ha-card-border-color,var(--divider-color,#ddd))}</style><slot></slot>";
+      }
+    });
+  }
+
+  // Deterministic sample data, invented for this page. None of it is from a real person.
+  const HOUR = 3600000;
+  const DAY = 24 * HOUR;
+  const ENTITY = "sensor.sample_today_score";
+  const GOALS = { steps: 10000, exercise: 30, energy: 500, week: 150, days: 5, focus: 2 };
+  // The same groups the integration knows: which kinds of workout a focus activity stands for.
+  const FOCUS = { strength: /strength|weightlifting|calisthenics|core_training/, swimming: /swim/, cycling: /biking|cycling/, running: /running/ };
+  const noise = (n) => {
+    const x = Math.sin(n * 12.9898) * 43758.5453;
+    return x - Math.floor(x) - 0.5;
+  };
+  const iso = (ms) => new Date(ms).toISOString().replace(/\.\d{3}Z$/, "+00:00");
+  const round = (v, d = 0) => Math.round(v * 10 ** d) / 10 ** d;
+  const midnight = (ms) => Math.floor(ms / DAY) * DAY;
+
+  // A workout some days back, starting at an hour of the day (UTC, the demo's time zone).
+  const workout = (back, hour, minutes, type, more = {}) => ({ back, hour, minutes, type, ...more });
+  const RUN = { distance_km: 7.2, pace_min_per_km: 5.83, active_calories: 410, heart_rate_avg: 148, heart_rate_max: 171, steps: 7350 };
+  const WEIGHTS = { total_calories: 203, heart_rate_avg: 111, heart_rate_max: 144 };
+  const RIDE = { distance_km: 24.3, active_calories: 520, heart_rate_avg: 132, heart_rate_max: 158 };
+  const SWIM = { distance_km: 1.2, active_calories: 310, heart_rate_avg: 126, heart_rate_max: 151 };
+  const WALK = { distance_km: 2.3, pace_min_per_km: 12.1, active_calories: 96, heart_rate_avg: 92, steps: 2890 };
+  const OLDER = [
+    workout(8, 6.5, 65, "biking", RIDE),
+    workout(9, 18, 40, "strength_training", WEIGHTS),
+    workout(10, 7, 30, "yoga", { active_calories: 84, heart_rate_avg: 86 }),
+    workout(12, 17, 38, "running", { ...RUN, distance_km: 6.4 }),
+  ];
+
+  const SCENARIOS = {
+    typical: {
+      steps: 6480, exercise: 24, active: 372, total: 1540, distance: 4.9, average: 8940, level: 1, syncedMin: 12,
+      workouts: [
+        workout(0, 7.2, 28, "walking", WALK), workout(1, 17.1, 42, "running", RUN), workout(2, 18, 45, "strength_training", WEIGHTS),
+        workout(4, 6.5, 40, "swimming_pool", SWIM), workout(5, 6.5, 65, "biking", RIDE), ...OLDER,
+      ],
+      streak: 2, best: 5,
+    },
+    done: {
+      steps: 12340, exercise: 52, active: 640, total: 2390, distance: 9.6, average: 10420, level: 1.15, syncedMin: 4,
+      workouts: [
+        workout(0, 6, 45, "functional_strength_training", WEIGHTS), workout(1, 17.1, 42, "running", RUN), workout(1, 7.2, 28, "walking", WALK),
+        workout(3, 18, 50, "strength_training", WEIGHTS), workout(4, 6.5, 40, "swimming_pool", SWIM), workout(5, 6.5, 65, "biking", RIDE),
+        workout(6, 6.5, 35, "swimming_pool", SWIM), ...OLDER,
+      ],
+      streak: 6, best: 9,
+    },
+    rest: {
+      steps: 1820, exercise: 0, active: 96, total: 720, distance: 1.3, average: 6210, level: 0.72, syncedMin: 55,
+      workouts: [workout(5, 9, 110, "hiking", { distance_km: 9.4, active_calories: 640, heart_rate_avg: 118, heart_rate_max: 149, steps: 13900 }), ...OLDER],
+      streak: 0, best: 4,
+    },
+    fresh: {
+      steps: 6480, exercise: 24, active: 372, total: 1540, distance: 4.9, average: 8940, level: 1, syncedMin: 12,
+      workouts: [workout(0, 7.2, 28, "walking", WALK), workout(1, 17.1, 42, "running", RUN)],
+      streak: 2, best: 5, since: 1,
+    },
+  };
+
+  function workoutsOf(s, now) {
+    const today = midnight(now);
+    return s.workouts
+      .map(({ back, hour, minutes, type, ...details }) => {
+        const start = today - back * DAY + hour * HOUR;
+        return { type, start: iso(start), end: iso(start + minutes * 60000), minutes, ...details, at: start };
+      })
+      .filter((item) => item.at < now)
+      .sort((a, b) => b.at - a.at);
+  }
+
+  // What the integration does: the share of the goal, and a score that stops at 100.
+  const fill = (value, goal, extra = {}) => ({
+    value, goal, percent: Math.round((value / goal) * 100), score: Math.round(Math.min(100, (value / goal) * 100)), ...extra,
+  });
+
+  function summary(s, now, focus) {
+    const all = workoutsOf(s, now).map((item) => (FOCUS[focus].test(item.type) ? { ...item, focus: true } : item));
+    const weekStart = midnight(now) - 6 * DAY;
+    const week = all.filter((item) => item.at >= weekStart);
+    // The last seven days, oldest first, today last: exercise minutes, and whether the focus activity was done.
+    const starts = [6, 5, 4, 3, 2, 1, 0].map((back) => midnight(now) - back * DAY);
+    const on = (start) => week.filter((item) => midnight(item.at) === start);
+    const dayMinutes = starts.map((start, index) =>
+      index === 6 ? s.exercise : Math.max(exerciseOn(start, s, now), on(start).reduce((sum, item) => sum + item.minutes, 0)),
+    );
+    const weekMinutes = dayMinutes.reduce((sum, value) => sum + value, 0);
+    const active = dayMinutes.map((value) => value >= GOALS.exercise);
+    const focusDays = starts.map((start) => on(start).some((item) => item.focus));
+    const countOf = (list) => list.filter(Boolean).length;
+    const known = s.since !== undefined ? s.since + 1 : 7;
+    const metrics = {
+      steps: fill(s.steps, GOALS.steps, { average_7d: s.average, average_30d: s.average - 310 }),
+      exercise: fill(s.exercise, GOALS.exercise, { average_7d: round(weekMinutes / 7), average_30d: 22 }),
+      active_energy: fill(s.active, GOALS.energy, { average_7d: round(520 * s.level), average_30d: 505 }),
+      total_energy: { value: s.total, average_7d: round(2310 * s.level), average_30d: 2280 },
+      distance: { value: s.distance, average_7d: round(6.8 * s.level, 2), average_30d: 6.5 },
+      resting_energy: { value: s.total - s.active },
+      exercise_week: fill(weekMinutes, GOALS.week, { days: dayMinutes }),
+      active_days_week: fill(countOf(active), GOALS.days, { days: active, threshold: GOALS.exercise }),
+      focus_week: fill(countOf(focusDays), GOALS.focus, { activity: focus, days: focusDays, days_known: known }),
+      steps_average: { value: s.average, days: 7, average_30d: s.average - 310, goal: GOALS.steps },
+      workouts_week: { value: week.length, minutes: week.reduce((sum, item) => sum + item.minutes, 0), days_known: known },
+      steps_streak: { value: s.streak + (s.steps >= GOALS.steps ? 1 : 0), best: s.best, goal: GOALS.steps },
+      steps_best: { value: 18460, date: new Date(now - 23 * DAY).toISOString().slice(0, 10) },
+    };
+    const mean = (keys) => Math.round(keys.reduce((sum, key) => sum + Math.min(100, (metrics[key].value / metrics[key].goal) * 100), 0) / keys.length);
+    metrics.today_score = { value: mean(["steps", "exercise", "active_energy"]), rings: 3 };
+    metrics.week_score = { value: mean(["exercise_week", "active_days_week", "focus_week"]), rings: 3 };
+    return {
+      updated: iso(now),
+      synced: iso(now - s.syncedMin * 60000),
+      metrics,
+      focus,
+      workouts: all.slice(0, 12).map(({ at, ...rest }) => rest),
+      workouts_since: new Date(midnight(now) - (s.since ?? 200) * DAY).toISOString().slice(0, 10),
+    };
+  }
+
+  // Steps on a day: a weekly rhythm (long walk on Saturdays, lazy Sundays), slowly more over the years.
+  function stepsOn(dayStart, s, now) {
+    if (dayStart >= midnight(now)) return s.steps;
+    const n = Math.floor(dayStart / DAY);
+    const weekday = new Date(dayStart).getUTCDay();
+    const rhythm = [0.72, 0.95, 1.05, 0.98, 1.1, 0.92, 1.32][weekday];
+    const years = (now - dayStart) / (365 * DAY);
+    const base = (s.average - 300) * Math.max(0.55, 1 - years * 0.055) * (1 + 0.08 * Math.sin(n / 58));
+    return Math.max(400, Math.round(base * rhythm * (1 + noise(n) * 0.5)));
+  }
+  function exerciseOn(dayStart, s, now) {
+    if (dayStart >= midnight(now)) return s.exercise;
+    const n = Math.floor(dayStart / DAY);
+    const weekday = new Date(dayStart).getUTCDay();
+    const planned = [0, 42, 0, 45, 0, 28, 65][weekday] * s.level;
+    return noise(n * 7) < -0.32 ? 0 : Math.round(planned * (1 + noise(n * 3) * 0.5) + Math.max(0, noise(n * 5)) * 22);
+  }
+
+  function series(message, s, now) {
+    const points = [];
+    if (!s) return { metric: message.metric, period: message.period, points };
+    const start = Date.parse(message.start);
+    const value = message.metric === "steps" ? stepsOn : exerciseOn;
+    // Steps go back about eight years, exercise to when the sample watch was new.
+    const earliest = midnight(now) - (message.metric === "steps" ? 2900 : 420) * DAY;
+    let at = midnight(Math.max(start, earliest));
+    if (message.period === "week") at -= ((new Date(at).getUTCDay() + 6) % 7) * DAY;
+    if (message.period === "month") at = Date.UTC(new Date(at).getUTCFullYear(), new Date(at).getUTCMonth(), 1);
+    while (at <= now) {
+      let end = at + DAY;
+      if (message.period === "week") end = at + 7 * DAY;
+      if (message.period === "month") end = Date.UTC(new Date(at).getUTCFullYear(), new Date(at).getUTCMonth() + 1, 1);
+      let total = 0;
+      for (let day = at; day < end && day <= now; day += DAY) total += value(day, s, now);
+      const days = Math.max(1, Math.ceil((Math.min(end, now) - at) / DAY));
+      points.push({ start: at, end, value: total, days });
+      at = end;
+    }
+    return { metric: message.metric, period: message.period, points };
+  }
+
+  function makeHass(name, units, focus) {
+    const s = SCENARIOS[name];
+    const callWS = async (message) => {
+      const now = Date.now();
+      if (message.type === "active_rings/summary") {
+        return s
+          ? summary(s, now, focus)
+          : { updated: iso(now), synced: null, metrics: {}, focus, workouts: [], workouts_since: null };
+      }
+      if (message.type === "active_rings/series") return series(message, s, now);
+      throw { code: "unknown_command" };
+    };
+    return {
+      // A new state object each time, as Home Assistant does when a sensor changes.
+      states: { [ENTITY]: { entity_id: ENTITY, state: s ? "72" : "unknown", attributes: {} } },
+      entities: { [ENTITY]: { platform: "active_rings" } },
+      locale: { language: "en-GB" },
+      config: { time_zone: "UTC", unit_system: { length: units === "other" ? "mi" : "km" } },
+      callWS,
+    };
+  }
+
+  const FRAMES = [
+    { ha: "synth", title: "Synthwave (default)", sub: "one column", preset: "synthwave" },
+    { ha: "light", title: "Theme preset", sub: "follows a light theme", preset: "theme" },
+    { ha: "dark", title: "Theme preset", sub: "follows a dark theme", preset: "theme" },
+    { ha: "synth", title: "Two columns wide", sub: "about 760 px", preset: "synthwave", wide: 760 },
+    { ha: "synth", title: "Three columns wide", sub: "about 1100 px (needs a wide screen)", preset: "synthwave", wide: 1120 },
+    { ha: "light", title: "Two columns wide", sub: "theme preset, light", preset: "theme", wide: 760 },
+    { ha: "synth", title: "Narrow column", sub: "300 px, rings above their rows", preset: "synthwave", narrow: true },
+    { ha: "dark", title: "Vivid preset", sub: "bright colours on a dark theme", preset: "vivid" },
+    { ha: "synth", title: "Rings and rows only", sub: "everything else switched off", preset: "synthwave", compact: true },
+  ];
+
+  function build(container, frames) {
+    return frames.map((f) => {
+      const figure = document.createElement("figure");
+      if (f.narrow) figure.className = "narrow";
+      if (f.wide) {
+        figure.className = "wide";
+        figure.style.maxWidth = f.wide + "px";
+      }
+      const caption = document.createElement("figcaption");
+      const strong = document.createElement("b");
+      strong.textContent = f.title;
+      const sub = document.createElement("span");
+      sub.textContent = " · " + f.sub;
+      caption.append(strong, sub);
+      const frame = document.createElement("div");
+      frame.className = "frame";
+      frame.dataset.ha = f.ha;
+      const card = document.createElement("active-rings-card");
+      frame.append(card);
+      figure.append(caption, frame);
+      container.append(figure);
+      return { card, f };
+    });
+  }
+  const cards = build(document.getElementById("grid"), FRAMES);
+
+  const state = { scenario: "typical", unit: "metric", focus: "strength" };
+  function apply() {
+    for (const { card, f } of cards) {
+      card.setConfig({
+        type: "custom:active-rings-card",
+        entity: ENTITY,
+        preset: f.preset,
+        energy_unit: state.unit === "other" ? "kJ" : "kcal",
+        show_today: !f.compact,
+        show_steps: !f.compact,
+        show_exercise: !f.compact,
+        show_workouts: !f.compact,
+      });
+      card.hass = makeHass(state.scenario, state.unit, state.focus);
+    }
+  }
+  for (const id of ["scenario", "unit", "focus"]) {
+    document.getElementById(id).addEventListener("click", (event) => {
+      const button = event.target.closest("button");
+      if (!button) return;
+      state[id] = button.dataset.v;
+      for (const b of event.currentTarget.querySelectorAll("button")) {
+        b.setAttribute("aria-pressed", String(b === button));
+      }
+      apply();
+    });
+  }
+  apply();
+
+  // Showcase mode: the branded scenes the README images are taken from.
+  if (new URLSearchParams(location.search).has("showcase")) {
+    document.body.classList.add("showcase");
+    document.querySelector(".wrap").hidden = true;
+    document.getElementById("showcase").hidden = false;
+    const place = (id, config, scenario = "typical", focus = "strength") => {
+      const card = document.createElement("active-rings-card");
+      card.setConfig({ type: "custom:active-rings-card", entity: ENTITY, ...config });
+      card.hass = makeHass(scenario, "metric", focus);
+      document.getElementById(id).append(card);
+      return card;
+    };
+    place("hero-card", { preset: "synthwave" });
+    const charts = { show_steps: false, show_exercise: false, show_workouts: false };
+    place("theme-synth", { preset: "synthwave", ...charts });
+    place("theme-light", { preset: "theme", ...charts });
+    place("theme-dark", { preset: "vivid", ...charts });
+    const rings = { ...charts, show_today: false };
+    const explained = place("ring-info", { preset: "synthwave", ...rings });
+    place("ring-focus", { preset: "synthwave", ...rings }, "done", "swimming");
+    // Open one information box, as a visitor would by hovering the row.
+    explained.updateComplete.then(() =>
+      setTimeout(() => explained.shadowRoot.querySelector(".row.c-days")?.dispatchEvent(new PointerEvent("pointerenter")), 600),
+    );
+  }
+</script>

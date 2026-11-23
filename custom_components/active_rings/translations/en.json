@@ -1,0 +1,103 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Steps, exercise and workouts",
+        "description": "Choose whose activity data to use. Supported source: Life Dashboard. The goals can be changed afterwards under Configure.",
+        "data": {
+          "name": "Name",
+          "source_entry": "Activity data from"
+        },
+        "data_description": {
+          "name": "Used for the device and its entities, for example a person's name.",
+          "source_entry": "The integration entry that receives this person's health data."
+        }
+      }
+    },
+    "error": {
+      "not_a_source": "This entry does not belong to a supported integration.",
+      "no_steps": "This entry has no steps sensor. Send health data to it first, or enable its steps sensor.",
+      "invalid_name": "Give a name of 1 to 60 characters."
+    },
+    "abort": {
+      "already_configured": "This activity data is already set up.",
+      "no_source": "No supported health integration is set up yet. Install and set up Life Dashboard first."
+    }
+  },
+  "entity": {
+    "sensor": {
+      "today_score": {
+        "name": "Today score"
+      },
+      "week_score": {
+        "name": "Week score"
+      },
+      "steps_average": {
+        "name": "Steps 7-day average"
+      },
+      "exercise_week": {
+        "name": "Exercise last 7 days"
+      },
+      "workouts_week": {
+        "name": "Workouts last 7 days"
+      },
+      "steps_streak": {
+        "name": "Steps goal streak"
+      },
+      "resting_energy": {
+        "name": "Resting energy today"
+      },
+      "active_days_week": {
+        "name": "Active days last 7 days"
+      },
+      "focus_week": {
+        "name": "Focus activity days last 7 days"
+      }
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "ActiveRings goals",
+        "description": "A ring is full when its goal is reached. The first three goals are for one day, the rest for the last seven days.",
+        "data": {
+          "steps_goal": "Steps a day",
+          "exercise_goal": "Exercise minutes a day",
+          "energy_goal": "Active energy a day (kcal)",
+          "weekly_exercise_goal": "Exercise minutes in 7 days",
+          "active_days_goal": "Active days in 7 days",
+          "focus_activity": "Focus activity",
+          "focus_goal": "Days with the focus activity in 7 days"
+        },
+        "data_description": {
+          "steps_goal": "Also the goal line of the steps chart and the goal of the streak.",
+          "exercise_goal": "A day that reaches this counts as an active day.",
+          "weekly_exercise_goal": "The World Health Organization advises adults at least 150 minutes of moderate activity a week.",
+          "active_days_goal": "On how many of the last seven days you want to reach your daily exercise goal.",
+          "focus_activity": "The kind of workout you want to keep up. Choose one, or type the name of another kind as your health app names it, for example tennis.",
+          "focus_goal": "For strength training, the World Health Organization advises 2 or more days a week."
+        }
+      }
+    },
+    "error": {
+      "invalid_goal": "One of the goals or the focus activity is not a value that can be used."
+    }
+  },
+  "selector": {
+    "focus_activity": {
+      "options": {
+        "strength": "Strength training",
+        "running": "Running",
+        "walking": "Walking",
+        "hiking": "Hiking",
+        "cycling": "Cycling",
+        "swimming": "Swimming",
+        "rowing": "Rowing",
+        "yoga": "Yoga",
+        "pilates": "Pilates",
+        "hiit": "High-intensity interval training",
+        "dancing": "Dancing"
+      }
+    }
+  }
+}

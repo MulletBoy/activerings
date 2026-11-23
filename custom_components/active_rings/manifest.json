@@ -1,0 +1,25 @@
+{
+  "domain": "active_rings",
+  "name": "ActiveRings",
+  "after_dependencies": [
+    "frontend",
+    "recorder"
+  ],
+  "categories": [
+    "health_wellbeing"
+  ],
+  "codeowners": [
+    "@MulletBoy"
+  ],
+  "config_flow": true,
+  "dependencies": [
+    "http",
+    "websocket_api"
+  ],
+  "documentation": "https://github.com/MulletBoy/activerings",
+  "integration_type": "service",
+  "iot_class": "calculated",
+  "issue_tracker": "https://github.com/MulletBoy/activerings/issues",
+  "requirements": [],
+  "version": "1.0.0"
+}
