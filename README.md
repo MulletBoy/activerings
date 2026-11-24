@@ -15,6 +15,7 @@
 
 <p align="center">
   <a href="#install">Install</a> ·
+  <a href="#setup-guide">Setup guide</a> ·
   <a href="#the-rings-family">The Rings family</a> ·
   <a href="#the-card">The card</a> ·
   <a href="#how-the-rings-fill">The rings</a> ·
@@ -108,8 +109,244 @@ More may follow.
 5. Add the **Active Rings** card to a dashboard and pick any ActiveRings entity.
 6. Optional: set your goals and your focus activity under **Configure** on the integration.
 
+The [setup guide](#setup-guide) below goes through every setting.
+
 Manual install: copy `custom_components/active_rings` into your `config/custom_components`
 folder and restart.
+
+## Setup guide
+
+ActiveRings has two places with settings, and neither needs YAML:
+
+| What you want to change | Where |
+|---|---|
+| What is counted: your six goals and your focus activity | The integration: **Settings > Devices & services > ActiveRings**, then the cog (**Configure**) on your entry |
+| How it looks: which parts are shown, units, chart periods, preset and colours | The card: edit your dashboard, then the pencil on the card |
+
+The goals belong to the person, so every card and every sensor of that person uses the same
+ones. The look belongs to the card, so two cards of the same person can look different.
+
+### Set up the integration
+
+**Settings > Devices & services > Add integration > ActiveRings** asks two things:
+
+| Field | What to enter |
+|---|---|
+| **Name** | A name for the device and its entities, 1 to 60 characters, for example a person's name. The name `Sam` gives `sensor.sam_today_score` and so on; the suggested name `Activity` gives `sensor.activity_today_score`. |
+| **Activity data from** | The Life Dashboard entry that receives this person's health data. |
+
+If the form will not go on, it says why:
+
+| Message | What to do |
+|---|---|
+| No supported health integration is set up yet | Install and set up [Life Dashboard](https://github.com/owen282000/life-dashboard-ha) first. |
+| This entry has no steps sensor | Send health data from the phone app first, or enable the steps sensor of Life Dashboard if you disabled it. |
+| This activity data is already set up | There is one ActiveRings entry for each Life Dashboard entry. Change the existing one under **Configure**. |
+
+ActiveRings starts with the default goals and strength training as the focus activity, so the
+card works straight away.
+
+### Goals and focus activity
+
+**Settings > Devices & services > ActiveRings**, then the cog (**Configure**) on your entry,
+opens the form **ActiveRings goals**:
+
+| Setting | Default | You can set | What it changes |
+|---|---|---|---|
+| **Steps a day** | 10,000 | 1,000 to 60,000 | The Steps ring, the goal line of the steps chart and the goal streak |
+| **Exercise minutes a day** | 30 | 5 to 600 | The Exercise ring, and how many minutes make a day an active day |
+| **Active energy a day (kcal)** | 500 | 50 to 5,000 | The Energy ring. Always entered in kilocalories, also when the card shows kilojoules (1 kcal is 4.184 kJ) |
+| **Exercise minutes in 7 days** | 150 | 30 to 3,000 | The Active minutes ring and the goal line of the exercise chart |
+| **Active days in 7 days** | 5 | 1 to 7 | The Active days ring |
+| **Focus activity** | Strength training | A name from the list, or one you type | Which workouts fill the third ring of the week and stand out in the workouts list |
+| **Days with the focus activity in 7 days** | 2 | 1 to 7 | The focus activity ring |
+
+Good to know:
+
+- Goals are whole numbers. A change applies as soon as you submit the form; no restart.
+- A goal is not stored with each day. When you change one, the past is counted again against
+  the new goal: a lower steps goal can make your goal streak longer, and a higher daily
+  exercise goal can take active days away.
+- The sensors change with the goals too (their `goal` attributes and the two scores), so
+  automations that use them follow.
+
+**Choosing the focus activity.** A name from the list stands for every kind of workout that
+belongs to it:
+
+| In the list | Counts workouts whose kind contains |
+|---|---|
+| Strength training | `strength`, `weightlifting`, `calisthenics`, `core_training` |
+| Running | `running` |
+| Walking | `walking` |
+| Hiking | `hiking` |
+| Cycling | `biking`, `cycling` (outdoors and on a stationary bike) |
+| Swimming | `swim` (pool and open water) |
+| Rowing | `rowing` |
+| Yoga | `yoga` |
+| Pilates | `pilates` |
+| High-intensity interval training | `hiit`, `high_intensity` |
+| Dancing | `danc` (every kind of dance) |
+
+Any other sport: type its name into the field instead of choosing one, as your health app
+names it, for example `tennis`, `rock_climbing` or `pickleball`. Capitals and spaces do not
+matter (`Rock climbing` is kept as `rock_climbing`). Every workout whose kind contains what you
+typed is counted, so `tennis` also counts table tennis. Not sure how a workout is named? Record
+one, then look at the `sessions` attribute of Life Dashboard's **Exercise today** sensor under
+**Developer tools > States**: its `type` is the name to type.
+
+Very short workouts can be kept out of the list and the focus ring with Life Dashboard's own
+option **Shortest workout (minutes)**; ActiveRings follows it.
+
+### The card
+
+Edit your dashboard, choose **Add card** and search for **Active Rings**. The card is added to
+every dashboard automatically (there is no resource to register) and picks the first ActiveRings
+entity it finds. In YAML it is `custom:active-rings-card`; point it at any entity of the
+ActiveRings device:
+
+```yaml
+type: custom:active-rings-card
+entity: sensor.activity_today_score
+```
+
+Every option is in the card's visual editor. The first column is its name there, the second
+its name in YAML:
+
+| In the editor | Option | Default | |
+|---|---|---|---|
+| ActiveRings entity | `entity` | | Any entity of an ActiveRings device (required). It only tells the card whose figures to show |
+| Title | `name` | `Activity` | The title at the top of the card |
+| Colour preset | `preset` | `synthwave` | `synthwave`, `theme` (follows your light or dark theme) or `vivid` |
+| A row for each ring | `show_rows` | `true` | A row beside the rings for each ring: share of the goal, the figure and what is left. Off leaves the rings alone |
+| Today's distance and energy | `show_today` | `true` | Today's distance, active energy, resting energy and total burn, each beside its 7-day average |
+| Steps chart, average, streak and best day | `show_steps` | `true` | The steps chart with your 7-day average, goal streak and best day |
+| Exercise chart | `show_exercise` | `true` | Exercise minutes in each week |
+| Recent workouts | `show_workouts` | `true` | The list of your latest workouts |
+| Workouts in the list | `workouts_shown` | `5` | How many workouts the list shows: `1` to `12` |
+| Steps chart opens on | `steps_range` | `30d` | `30d`, `6m`, `1y` or `all`. You can still switch the period in the card; this is the one it opens on |
+| Exercise chart opens on | `exercise_range` | `6m` | `3m`, `6m` or `1y` |
+| Distance unit | `distance_unit` | unit system | `km` or `mi`. Empty follows Home Assistant's unit system |
+| Energy unit | `energy_unit` | `kcal` | `kcal` or `kJ` |
+| Tinted boxes | `tiles` | preset | A tinted box around each part of the card |
+| Use the theme's card background | `theme_background` | `false` | The Synthwave preset paints its own dark card; on keeps your theme's card background instead |
+| Colours | `colors` | | Change single colours of the preset, see [Colours](#colours) |
+
+### Colours
+
+Start from a preset: **Synthwave** (neon on a dark card, whatever your theme is), **Theme**
+(quiet colours that follow your light or dark Home Assistant theme) or **Vivid** (bright colours
+on your theme's card).
+
+Then change any single colour under **Colours** in the editor, or with `colors` in YAML. A
+field left empty keeps the preset's colour.
+
+| Name | What it colours |
+|---|---|
+| `steps`, `exercise`, `energy` | Today's three rings and their rows; `steps` and `exercise` also colour their charts |
+| `minutes`, `days`, `focus` | The week's three rings and their rows; `focus` also marks the workouts of your focus activity in the list |
+| `steps_end`, `exercise_end`, `energy_end`, `minutes_end`, `days_end`, `focus_end` | The second colour each ring fades to. Give it the same colour as the ring for a ring in one flat colour |
+| `distance`, `resting`, `total` | Today's distance, resting energy and total burn |
+| `streak` | The goal streak |
+| `cardio` | Workouts in the list that are not your focus activity |
+| `goal` | The goal line on the charts |
+| `fresh`, `recent`, `stale` | The "synced ... ago" marker and the dot of a set: good, fair, poor |
+
+A colour is a hex value (`"#ff2fd6"`), a colour name (`teal`), `rgb(...)` or `hsl(...)`, or a
+variable of your theme (`var(--accent-color)`). Anything else is ignored. In YAML, put hex
+values in quotes.
+
+```yaml
+type: custom:active-rings-card
+entity: sensor.activity_today_score
+preset: vivid
+colors:
+  steps: "#00c2ff"
+  steps_end: "#0066ff"
+  focus: var(--accent-color)
+```
+
+**From a Home Assistant theme.** With the Theme preset, a theme can set the colours for every
+ActiveRings card at once with variables named `active-rings-<name>-color`, where the name is
+one from the table above (the `_end` colours are not among them):
+
+```yaml
+# in your theme
+my-theme:
+  active-rings-steps-color: "#e11d48"
+  active-rings-focus-color: "#0d9488"
+```
+
+A colour set on the card wins over the preset, and the preset wins over the theme's variables.
+
+### Layout
+
+The card arranges itself by the width it is given:
+
+| Card width | Arrangement |
+|---|---|
+| Under 420 px (a phone, a narrow column) | One column, each set's rings above its rows |
+| 420 to 639 px | One column, rings beside their rows |
+| 640 to 959 px | The two sets side by side and level (rings above their rows), today's four figures in one line, the two charts side by side, the workouts below them |
+| 960 px and wider | The two sets side by side with their rings beside the rows; steps chart, exercise chart and workouts side by side |
+
+In a sections dashboard the card takes the full width of its section and is as tall as its
+content. To give it one of the wider arrangements, make the section wider (the section's
+`column_span`) rather than the card.
+
+To make a small card, switch parts off. Rings only:
+
+```yaml
+type: custom:active-rings-card
+entity: sensor.activity_today_score
+show_rows: false
+show_today: false
+show_steps: false
+show_exercise: false
+show_workouts: false
+```
+
+Rings and workouts, in miles and kilojoules, in your theme's colours:
+
+```yaml
+type: custom:active-rings-card
+entity: sensor.activity_today_score
+name: Training
+preset: theme
+show_today: false
+show_steps: false
+show_exercise: false
+workouts_shown: 8
+distance_unit: mi
+energy_unit: kJ
+```
+
+### More than one person
+
+Each person needs their own Life Dashboard entry (their own phone). Add the ActiveRings
+integration once more for each of them, choose their entry and give it their name. Every
+person then has their own device, sensors, goals, focus activity and workout log. Add one card
+for each person and point it at one of that person's entities.
+
+### Changing things later
+
+- **Rename:** rename the device under **Settings > Devices & services > ActiveRings**; Home
+  Assistant offers to rename its entities with it. The card's title is the card's own `name`.
+- **Another source entry:** delete the ActiveRings entry and add the integration again. Your
+  goals go back to the defaults, and the workout log is filled again from Life Dashboard's
+  list (Life Dashboard 1.5.0 and newer).
+- **Remove:** delete the ActiveRings entry (this deletes its workout log), remove the card from
+  your dashboards, then remove ActiveRings in Marketplace or HACS and restart.
+
+### If something is not right
+
+| What you see | What to do |
+|---|---|
+| "Choose an ActiveRings entity in the card settings." | The card has no `entity`. Edit the card and pick one. |
+| "Entity not found" | The entity was renamed or removed. Edit the card and pick it again. |
+| The card is not in the card picker, or "Custom element doesn't exist" | Reload the page (on the phone app: pull down to refresh, or clear the frontend cache in the app's debugging settings) after installing or updating. |
+| Every ring of today is at zero just after midnight | That is right: the new day starts at zero and fills at the phone's next sync. |
+| The focus activity ring stays empty | Check under **Configure** which activity is chosen, and how your workouts are named (see [Goals and focus activity](#goals-and-focus-activity)). |
+| Old workouts are missing | With Life Dashboard 1.5.0 or newer, use "Send history" in its phone app. The card says since when it is counting. |
 
 ## What's new
 
@@ -136,7 +373,8 @@ rings, each counted to 100 at most.
 | Last 7 days | Focus activity | Days of the last seven with a workout of your focus activity | 2 days |
 
 All six goals and the focus activity are set under **Settings > Devices & services >
-ActiveRings > Configure**. The defaults lean on the World Health Organization's guidelines for
+ActiveRings > Configure** (see [Goals and focus activity](#goals-and-focus-activity)). The
+defaults lean on the World Health Organization's guidelines for
 adults: at least 150 minutes of moderate activity a week, and muscle strengthening on two or
 more days a week (which is why the focus activity starts as strength training with a goal of
 two days).
@@ -154,7 +392,8 @@ every kind of workout that belongs to it: Cycling counts a ride outdoors and one
 stationary bike, Swimming counts the pool and open water, Strength training counts weights,
 functional strength, core and bodyweight training. If your sport is not in the list, type its
 name as your health app names it (for example `tennis` or `rock_climbing`) and workouts of that
-kind are counted.
+kind are counted. The setup guide lists what each name counts and how to find the name of a
+sport: [Goals and focus activity](#goals-and-focus-activity).
 
 ## Entities
 
@@ -174,38 +413,6 @@ One device per person, with:
 
 Today's steps, distance, energy and exercise minutes are already sensors of your health
 integration, so ActiveRings does not repeat them.
-
-## The card
-
-`custom:active-rings-card`, added to every dashboard automatically (no resource
-to register). Point it at any entity of the ActiveRings device:
-
-```yaml
-type: custom:active-rings-card
-entity: sensor.activity_today_score
-```
-
-| Option | Default | |
-|---|---|---|
-| `entity` | | Any entity of an ActiveRings device (required) |
-| `name` | `Activity` | Title |
-| `preset` | `synthwave` | `synthwave`, `theme` (follows your light or dark theme) or `vivid` |
-| `show_rows` | `true` | A row beside the rings for each ring: share of the goal, the figure and what is left |
-| `show_today` | `true` | Today's distance, active energy, resting energy and total burn |
-| `show_steps` | `true` | Steps chart, 7-day average, goal streak and best day |
-| `show_exercise` | `true` | Exercise chart |
-| `show_workouts` | `true` | Recent workouts |
-| `workouts_shown` | `5` | How many workouts the list shows: `1` to `12` |
-| `steps_range` | `30d` | Period the steps chart opens on: `30d`, `6m`, `1y`, `all` |
-| `exercise_range` | `6m` | Period the exercise chart opens on: `3m`, `6m`, `1y` |
-| `distance_unit` | unit system | `km` or `mi` |
-| `energy_unit` | `kcal` | `kcal` or `kJ` |
-| `tiles` | preset | Tinted boxes around each part |
-| `theme_background` | `false` | Keep the theme's card background with the Synthwave preset |
-| `colors` | | Override any colour, for example `steps: "#ff2fd6"` |
-
-The card is one column wide by default and rearranges itself at two and three
-dashboard columns.
 
 ## How the figures are worked out
 
