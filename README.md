@@ -100,19 +100,22 @@ More may follow.
 
 [![Open this repository in Home Assistant.](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=MulletBoy&repository=activerings&category=integration)
 
-1. Open **Settings > Marketplace**, choose **Add from link** and paste
-   `https://github.com/MulletBoy/activerings` (type: Integration). On Home Assistant versions before
-   2026.11 with HACS: **HACS > Custom repositories**.
+1. Open **Settings > Marketplace** and search for **ActiveRings**. On Home Assistant versions before
+   2026.11 with HACS: search for it in **HACS**.
 2. Download **ActiveRings** and restart Home Assistant.
 3. Go to **Settings > Devices & services > Add integration > ActiveRings**.
 4. Choose whose activity data to use (your Life Dashboard entry).
 5. Add the **Active Rings** card to a dashboard and pick any ActiveRings entity.
 6. Optional: set your goals and your focus activity under **Configure** on the integration.
 
-The [setup guide](#setup-guide) below goes through every setting.
+If the search does not find ActiveRings, add it as a custom repository: in Marketplace choose
+**Add from link** and paste `https://github.com/MulletBoy/activerings` (type: Integration); in HACS
+use **Custom repositories**. Then carry on with step 2.
 
 Manual install: copy `custom_components/active_rings` into your `config/custom_components`
 folder and restart.
+
+The [setup guide](#setup-guide) below goes through every setting.
 
 ## Setup guide
 
